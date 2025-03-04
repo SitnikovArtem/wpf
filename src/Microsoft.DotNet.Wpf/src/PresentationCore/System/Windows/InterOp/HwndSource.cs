@@ -645,7 +645,7 @@ namespace System.Windows.Interop
                 if (value != null && _hwndTarget != null && !_hwndTarget.IsDisposed &&
                     MS.Internal.Automation.EventMap.HasListeners)
                 {
-                    _hwndTarget.EnsureAutomationPeer(value);
+                    //_hwndTarget.EnsureAutomationPeer(value);
                 }
             }
         }
