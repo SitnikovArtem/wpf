@@ -91,7 +91,7 @@ protected:
         return IsDataArray() ? GetCountFromArray() : static_cast<size_t>(m_data & 0x1);
     }
 
-    void Sort();
+    void Sort( size_t beginning );
 
     void CompactDataArray();
 
@@ -181,7 +181,7 @@ protected:
     // Number of Add operations since the last Sort, used to determine sorting
     // algorithm
     //
-    UINT m_unsortedNewElements;
+    UINT m_unsortedNewElements { 0 };
     
 #ifdef DEBUG
     inline void IncrementArrayVersion()

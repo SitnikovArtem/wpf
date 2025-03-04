@@ -166,6 +166,7 @@ CPtrMultisetBase::Add(__in_xcount(sizeof(T)) UINT_PTR p)
         //
 
         m_data = (p | 0x1);
+        m_unsortedNewElements++;
     }
     else if (cEntries == 1)
     {
@@ -199,13 +200,13 @@ CPtrMultisetBase::Add(__in_xcount(sizeof(T)) UINT_PTR p)
 #endif
 
         m_data = reinterpret_cast<UINT_PTR>(newArray) | 0x2;
+        m_unsortedNewElements++;
     }
     else
     {
         size_t cAlloc = GetArrayAllocatedSize();
         size_t cRemoved = GetTaggedCountFromArray();
-        double dCompactionFactor = GetCompactionFactorFromArray();
-        bool fIsSorted;
+        double dCompactionFactor = GetCompactionFactorFromArray();       
 
         //
         // If the set has become more sparse than our threshold,
@@ -218,7 +219,7 @@ CPtrMultisetBase::Add(__in_xcount(sizeof(T)) UINT_PTR p)
             cRemoved = GetTaggedCountFromArray();
         }
 
-        fIsSorted = IsDataSorted();
+        bool fIsSorted = IsDataSorted();
         UINT_PTR *dataArray = GetRawDataArray();
 
         if (cEntries == cAlloc)
@@ -284,14 +285,21 @@ CPtrMultisetBase::Add(__in_xcount(sizeof(T)) UINT_PTR p)
             dataArray[0]++; // One more element
         }
 
+        m_unsortedNewElements++;
+
         // If we were sorted before, check whether we're still sorted.
         if (fIsSorted && (p < dataArray[cEntries + PTRMULTISET_META_ELEMENTS - 1]))
         {
-            SetIsDataSorted(false);
+            if ( cEntries > PTRMULTISET_ARRAY_CUTOFF )
+            {
+                Sort(cEntries - 1);
+            }
+            else
+            {
+                SetIsDataSorted(false);
+            }
         }
     }
-
-    m_unsortedNewElements++;
 
 Cleanup:
     RRETURN(hr);
@@ -387,7 +395,7 @@ CPtrMultisetBase::Remove(__in_xcount(sizeof(T)) UINT_PTR p)
                 //
                 if (!IsDataSorted())
                 {
-                    Sort();
+                    Sort( 0 );
                 }
 
                 UINT_PTR *found = bsearch_lastoccurence(
@@ -460,7 +468,7 @@ CPtrMultisetBase::Contains(__in_xcount(sizeof(T)) UINT_PTR p)
         //
         if (!IsDataSorted())
         {
-            this->Sort();
+            this->Sort( 0 );
         }
 
         const UINT_PTR *pElements = GetElementArray();
@@ -504,7 +512,7 @@ CPtrMultisetBase::Clear()
 //------------------------------------------------------------------------------
 
 void
-CPtrMultisetBase::Sort()
+CPtrMultisetBase::Sort( size_t beginning )
 {
     Assert(IsDataArray());
     
@@ -530,14 +538,11 @@ CPtrMultisetBase::Sort()
         // list is still nearly sorted. Use insertion sort.
         //
         
-        size_t inserting = 0;
-        UINT_PTR swap;
-
         //
         // cEntries >= PTRMULTISET_ARRAY_CUTOFF = 150, so cEntries - 2 is
         // positive
         //
-        for (size_t sorted = 0; sorted < cEntries - 1; sorted++)
+        for (size_t sorted = beginning; sorted < cEntries - 1; ++sorted)
         {
             //
             // Everything with index <= sorted is sorted, find a place to insert
@@ -545,20 +550,22 @@ CPtrMultisetBase::Sort()
             // inserting ranges from 1 to cEntries - 1, which is within array
             // bounds.
             //
-            inserting = sorted + 1;
-
             // inserting - 1 is also within array bounds (0 to cEntries - 2)
-            while (inserting > 0 && compare_pointers(pElements + inserting, pElements + inserting - 1) == -1)
+            if( pElements[sorted + 1] < pElements[sorted] )
             {
-                //
-                // All elements with index < inserting is sorted, and the
-                // element at inserting is smaller than the one before it, so
-                // swap the two and keep looking towards index 0.
-                //
-                swap = pElements[inserting - 1];
-                pElements[inserting - 1] = pElements[inserting];
-                pElements[inserting] = swap;
-                inserting--;
+                size_t inserting = sorted + 1;
+                while (inserting > 0 && pElements[inserting] < pElements[inserting - 1])
+                {
+                    //
+                    // All elements with index < inserting is sorted, and the
+                    // element at inserting is smaller than the one before it, so
+                    // swap the two and keep looking towards index 0.
+                    //
+                    const auto swap = pElements[inserting - 1];
+                    pElements[inserting - 1] = pElements[inserting];
+                    pElements[inserting] = swap;
+                    --inserting;
+                }
             }
 
             //
