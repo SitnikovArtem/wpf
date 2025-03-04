@@ -31,6 +31,7 @@ Write-Host "*** Copy WPF files procedure ***"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Config = if ($release) { "Release" } else { "Debug" }
+$Sufix = if ($release) { "" } else { ".Debug" }
 
 Write-Host "Target architecture - configuration: " $arch $Config
 
@@ -52,9 +53,12 @@ function CopyNativeBinariesToLocation($location, $localBinLocation)
     # x86 - artifacts\packaging\Debug\Microsoft.DotNet.Wpf.GitHub\lib\win-x86
     # x64 - artifacts\packaging\Debug\x64\Microsoft.DotNet.Wpf.GitHub\lib\win-x64
 
-    $PackageName = "Microsoft.DotNet.Wpf.GitHub"
+    $PackageName = "Microsoft.DotNet.Wpf.GitHub$Sufix"
     $BinaryLocationInPackage =  "win-$arch"
-    CopyPackagedBinaries $location $localBinLocation $PackageName $BinaryLocationInPackage
+	$ArchFolder = if ($arch -eq "x86") { "" } else { "x64" }
+    $BinLocation = [System.IO.Path]::Combine($localBinLocation, $Config, $ArchFolder, $packageName, "runtimes", $binaryLocationInPackage, "native", "*")
+
+    CopyPackagedBinaries $location $BinLocation
 }
 function CopyManagedBinariesToLocation($location, $localBinLocation)
 {
@@ -62,15 +66,15 @@ function CopyManagedBinariesToLocation($location, $localBinLocation)
     # x86 - artifacts\packaging\Debug\Microsoft.DotNet.Wpf.GitHub\lib\net5.0
     # x64 - artifacts\packaging\Debug\x64\Microsoft.DotNet.Wpf.GitHub\lib\net5.0
 
-    $PackageName = "Microsoft.DotNet.Wpf.GitHub"
+    $PackageName = "Microsoft.DotNet.Wpf.GitHub$Sufix"
     $BinaryLocationInPackage = "net5.0"
-    CopyPackagedBinaries $location $localBinLocation $PackageName $BinaryLocationInPackage
-}
-
-function CopyPackagedBinaries($location, $localBinLocation, $packageName, $binaryLocationInPackage)
-{
     $ArchFolder = if ($arch -eq "x86") { "" } else { "x64" }
     $BinLocation = [System.IO.Path]::Combine($localBinLocation, $Config, $ArchFolder, $packageName, "lib", $binaryLocationInPackage, "*")
+    CopyPackagedBinaries $location $BinLocation
+}
+
+function CopyPackagedBinaries($location, $BinLocation)
+{
     if (Test-Path $BinLocation)
     {
         Copy-Item -path $BinLocation -include "*.dll","*.pdb" -Destination $location
@@ -153,7 +157,7 @@ elseif($testhost)
 else
 {
     $runtimeIdentifer = "win-$arch"
-    $location = [System.IO.Path]::Combine($destination, "bin\Debug\net5.0", $runtimeIdentifer, "publish")
+    $location = [System.IO.Path]::Combine($destination, "bin\$Config\net5.0", $runtimeIdentifer, "publish")
     if(![System.IO.Directory]::Exists($location))
     {
         Write-Host "App publishing directory unavailable: " $location -ForegroundColor Red
